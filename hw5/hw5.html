@@ -41,6 +41,7 @@
 var camera, scene, renderer;
 var controls;
 var texture;
+var table;
 
 init();
 animate();
@@ -49,10 +50,11 @@ buildTable();
 function init() {
 
   scene = new THREE.Scene();
+  
 
   camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 1000);
-  camera.position.z = 75;
-  camera.position.y = 50;
+  camera.position.z = -150;
+  camera.position.y = 100;
 
   var gridXZ = new THREE.GridHelper(150, 20, 'red', 'white');
   scene.add(gridXZ);
@@ -60,33 +62,41 @@ function init() {
   renderer = new THREE.WebGLRenderer();
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setClearColor(0x888888);
-  document.body.appendChild(renderer.domElement);
-
-  controls = new THREE.OrbitControls(camera, renderer.domElement);
+    
 
   var spotLight = new THREE.SpotLight( 0xffffff );
-  spotLight.position.set( 100, 1000, 100 );
+  spotLight.position.set( 100, 100, 100 );
   scene.add( spotLight );
+
+
   //----------------------------
 
-  buildTable();
+  table = buildTable();
+  table.position.z=20;
 
+  scene.add(table);
   
-
+  obj();
+  
+  document.body.appendChild(renderer.domElement);
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
 }
 
 function buildTable(){
 
+  let table = new THREE.Object3D(); 
+
   var g1 = new THREE.BoxGeometry(5, 40, 5);
   var g2 = new THREE.BoxGeometry(80, 5, 50);
 
+  THREE.ImageUtils.crossOrigin = '';  // no space between a pair of single quotes
 
-  //texture = new THREE.TextureLoader().load('https://i.imgur.com/4b4ze5n.jpg');
+  texture = THREE.ImageUtils.loadTexture("https://hsinminn.github.io/CG_homework/hw5/table.jpg");
 
   
-  var material = new THREE.MeshBasicMaterial({
-  	map: new THREE.TextureLoader().load('https://i.imgur.com/4b4ze5n.jpg')
-    
+  var material = new THREE.MeshPhongMaterial({
+  	map: texture,  
+    side: THREE.DoubleSide
   });
 
   var pillar1 = new THREE.Mesh(g1, material);
@@ -95,16 +105,98 @@ function buildTable(){
   var pillar4 = new THREE.Mesh(g1, material);
   var up = new THREE.Mesh(g2, material);
 
+  pillar1.position.set(35, 0, 20);
+  pillar2.position.set(35, 0, -20);
+  pillar3.position.set(-35, 0, -20);
+  pillar4.position.set(-35, 0, 20);
+  up.position.y=20;
+
+  table.add(pillar1);
+  table.add(pillar2);
+  table.add(pillar3);
+  table.add(pillar4);
+  table.add(up);
+
+  return table;
+}
+
+function obj(){
+
+  var onProgress = function(xhr) {
+    if (xhr.lengthComputable) {
+      var percentComplete = xhr.loaded / xhr.total * 100;
+      console.log(Math.round(percentComplete, 2) + '% downloaded');
+    }
+  };
+  var onError = function(xhr) {};
 
 
+  var mtlLoader = new THREE.MTLLoader();
+  mtlLoader.load('https://hsinminn.github.io/CG_homework/hw5/lamp_obj/materials.mtl', function(materials) {
+	
+    materials.preload();
 
-  scene.add(pillar1);
-  scene.add(pillar2);
-  scene.add(pillar3);
-  scene.add(pillar4);
-  scene.add(up);
+    var objLoader = new THREE.OBJLoader();
+    objLoader.setMaterials(materials);
+    objLoader.load('https://hsinminn.github.io/CG_homework/hw5/lamp_obj/model.obj', function(object) {
+
+		var lamp =  unitize (object, 30);
+		lamp.position.set(30, 23, 30);
+		lamp.rotation.y = 30;
+		scene.add (lamp);
+		//scene.add (new THREE.BoxHelper (lamp));							
+		
+		object.traverse (
+			function(mesh) {
+				if (mesh instanceof THREE.Mesh) {
+					mesh.material.side = THREE.DoubleSide;
+				}
+		});
+
+
+    }, onProgress, onError);
+
+  });
 
 }
+
+function unitize (object, targetSize) {  
+	
+	// find bounding box of 'object'
+	var box3 = new THREE.Box3();
+	box3.setFromObject (object);
+	var size = new THREE.Vector3();
+	size.subVectors (box3.max, box3.min);
+	var center = new THREE.Vector3();
+	center.addVectors(box3.max, box3.min).multiplyScalar (0.5);
+	
+	console.log ('center: ' + center.x + ', '+center.y + ', '+center.z );
+	console.log ('size: ' + size.x + ', ' +  size.y + ', '+size.z );
+
+	
+	// uniform scaling according to objSize
+	var objSize = findMax (size);
+	var scaleSet = targetSize/objSize;
+				
+	var theObject =  new THREE.Object3D();
+	theObject.add (object);
+
+	object.scale.set (scaleSet, scaleSet, scaleSet);
+	object.position.set (-center.x*scaleSet, -center.y*scaleSet + size.y/2*scaleSet, -center.z*scaleSet);
+	
+	return theObject;
+
+	// helper function
+	function findMax(v) {
+		if (v.x > v.y) {
+			return v.x > v.z ? v.x : v.z;
+		} else { // v.y > v.x
+			return v.y > v.z ? v.y : v.z;
+		} 
+	}
+
+}
+
 
 function onWindowResize() {
 
